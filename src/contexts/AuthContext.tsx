@@ -1,14 +1,12 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { auth } from '../firebaseConfig'; // Adjust the path if necessary
+import { User, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, userData: { fullName: string; companyName: string }) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string) => Promise<any>; // Adjust return type as needed
+  signIn: (email: string, password: string) => Promise<any>; // Adjust return type as needed
   signOut: () => Promise<void>;
 }
 
@@ -24,61 +22,49 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, userData: { fullName: string; companyName: string }) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: userData.fullName,
-          company_name: userData.companyName,
-        }
-      }
-    });
-    return { error };
+  const signUp = async (email: string, password: string) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      return { user: userCredential.user, error: null };
+    } catch (error: any) {
+      console.error('Signup error:', error.message);
+      return { user: null, error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return { user: userCredential.user, error: null };
+    } catch (error: any) {
+      console.error('Sign-in error:', error.message);
+      return { user: null, error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await signOut(auth);
+      console.log('User signed out');
+      // Note: onAuthStateChanged will set user to null
+    } catch (error: any) {
+      console.error('Sign-out error:', error.message);
+    }
   };
 
   const value = {
     user,
-    session,
     loading,
     signUp,
     signIn,
