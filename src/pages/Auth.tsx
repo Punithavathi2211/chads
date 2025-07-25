@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import { useEffect } from "react";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, signInMagicLink, user, loading } = useAuth(); // Added signInMagicLink
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -21,6 +20,7 @@ const Auth = () => {
     fullName: '',
     companyName: ''
   });
+  const [magicLinkEmail, setMagicLinkEmail] = useState(''); // State for magic link email
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -34,6 +34,10 @@ const Auth = () => {
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  const handleMagicLinkInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMagicLinkEmail(e.target.value);
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -79,10 +83,10 @@ const Auth = () => {
     }
 
     try {
-      const { error } = await signUp(formData.email, formData.password, {
-        fullName: formData.fullName,
-        companyName: formData.companyName
-      });
+      // Supabase signUp doesn't directly support additional data like fullName or companyName
+      // You would typically handle this by inserting a new row into a 'profiles' table 
+      // in your Supabase database after successful signup.
+      const { error } = await signUp(formData.email, formData.password);
       
       if (error) {
         if (error.message.includes('User already registered')) {
@@ -92,9 +96,27 @@ const Auth = () => {
         }
       } else {
         toast.success("Account created successfully! Please check your email to confirm your account.");
+        // Optionally, you can redirect to a confirmation page or show a message to check email
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMagicLinkSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const { error } = await signInMagicLink(magicLinkEmail);
+      if (error) {
+        toast.error(error.message || "Failed to send magic link.");
+      } else {
+        toast.success("Magic link sent! Check your email to sign in.");
+      }
+    } catch (error) {
+      toast.error("An unexpected error occurred while sending magic link.");
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +151,7 @@ const Auth = () => {
                 <CardDescription>Access your CHADS dashboard</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSignIn} className="space-y-4">
+                <form onSubmit={handleSignIn} className="space-y-4 mb-4">
                   <div>
                     <Label htmlFor="signin-email">Email</Label>
                     <Input
@@ -158,6 +180,31 @@ const Auth = () => {
                     {isLoading ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
+                 <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t"></span>
+                    </div>
+                    <div className="relative flex justify-center text-sm uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                    </div>
+                  </div>
+                 <form onSubmit={handleMagicLinkSignIn} className="space-y-4">
+                     <div>
+                        <Label htmlFor="magiclink-email">Magic Link Email</Label>
+                        <Input
+                          id="magiclink-email"
+                          name="magicLinkEmail"
+                          type="email"
+                          value={magicLinkEmail}
+                          onChange={handleMagicLinkInputChange}
+                          placeholder="Enter your email for magic link"
+                          required
+                        />
+                      </div>
+                       <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? "Sending Link..." : "Send Magic Link"}
+                      </Button>
+                 </form>
               </CardContent>
             </Card>
           </TabsContent>
